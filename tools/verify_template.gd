@@ -3,6 +3,7 @@ extends SceneTree
 var failures: Array[String] = []
 var lab: Node3D
 var player: VRPlayer
+var tronadura_all_marked_events: int = 0
 
 func _init() -> void:
 	run_checks.call_deferred()
@@ -11,6 +12,9 @@ func check(condition: bool, message: String) -> void:
 	if not condition:
 		failures.append(message)
 		push_error(message)
+
+func _on_tronadura_all_marked() -> void:
+	tronadura_all_marked_events += 1
 
 func frames(count: int = 3) -> void:
 	for index: int in range(count):
@@ -189,6 +193,37 @@ func run_checks() -> void:
 		instance.queue_free()
 		await process_frame
 	lab.queue_free()
+	await process_frame
+	var tronadura := (load("res://examples/tronadura/tronadura_main.tscn") as PackedScene).instantiate() as Node3D
+	root.add_child(tronadura)
+	current_scene = tronadura
+	Signal(tronadura, &"todos_los_pozos_marcados").connect(_on_tronadura_all_marked)
+	await frames(5)
+	var pozos := tronadura.get_tree().get_nodes_in_group(&"pozos")
+	var markers := tronadura.get_tree().get_nodes_in_group(&"vr_grabbable")
+	check(pozos.size() == 6, "Tronadura scene must contain six wells")
+	check(markers.size() == 6, "Tronadura scene must contain six markers")
+	if pozos.size() == 6 and markers.size() == 6:
+		for index: int in range(5):
+			var pozo := pozos[index] as Pozo
+			var marker := markers[index] as VRGrabbable
+			var marker_socket := pozo.get_node("MarcadorSocket") as VRSocket
+			check(marker.item_id == &"marcador", "Tray objects must use the marker item ID")
+			check(marker_socket.insert_item(marker), "Marker must insert into its matching well")
+			check(marker.freeze and marker_socket.occupant == marker, "Socketed marker must stay fixed")
+			check(pozo.estado == Pozo.Estado.MARCADO, "Inserted marker must mark its well")
+			check(tronadura_all_marked_events == 0, "Progress must wait for all six markers")
+		check(not (pozos[5] as Pozo).perforar(), "An empty well cannot be perforated")
+		var last_pozo := pozos[5] as Pozo
+		var last_marker := markers[5] as VRGrabbable
+		var last_socket := last_pozo.get_node("MarcadorSocket") as VRSocket
+		check(last_socket.insert_item(last_marker), "Sixth marker must insert into its well")
+		check(tronadura_all_marked_events == 1, "All six marked wells must emit the progression signal")
+		check(last_pozo.perforar() and last_pozo.estado == Pozo.Estado.PERFORADO, "Marked well can be perforated")
+		var reset_pozo := pozos[0] as Pozo
+		reset_pozo.reiniciar()
+		check(reset_pozo.estado == Pozo.Estado.VACIO and (reset_pozo.get_node("MarcadorSocket") as VRSocket).occupant == null, "Reset clears the socket and well state")
+	tronadura.queue_free()
 	await process_frame
 	if failures.is_empty():
 		print("PASS: VR template integration checks")
