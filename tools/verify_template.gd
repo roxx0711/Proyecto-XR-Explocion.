@@ -202,13 +202,20 @@ func run_checks() -> void:
 	var pozos := tronadura.get_tree().get_nodes_in_group(&"pozos")
 	var grabbables := tronadura.get_tree().get_nodes_in_group(&"vr_grabbable")
 	var markers: Array[VRGrabbable] = []
+	var charges: Array[VRGrabbable] = []
 	for grabbable_node: Node in grabbables:
 		var grabbable := grabbable_node as VRGrabbable
-		if grabbable != null and grabbable.item_id == &"marcador":
+		if grabbable == null:
+			continue
+		if grabbable.item_id == &"marcador":
 			markers.append(grabbable)
+		elif grabbable.item_id == &"carga":
+			charges.append(grabbable)
 	check(pozos.size() == 6, "Tronadura scene must contain six wells")
 	check(markers.size() == 6, "Tronadura scene must contain six markers")
-	if pozos.size() == 6 and markers.size() == 6:
+	check(charges.size() == 6, "Tronadura scene must contain six practice charges")
+	check((tronadura.get_node("ContadorPozos") as Label3D).text == "pozos cargados: 0/6", "Charge counter starts at zero")
+	if pozos.size() == 6 and markers.size() == 6 and charges.size() == 6:
 		var pozo_sin_marcar := pozos[0] as Pozo
 		var perforadora := (load("res://features/tronadura/herramientas/perforadora.tscn") as PackedScene).instantiate() as Perforadora
 		root.add_child(perforadora)
@@ -231,6 +238,12 @@ func run_checks() -> void:
 			check(marker.freeze and marker_socket.occupant == marker, "Socketed marker must stay fixed")
 			check(pozo.estado == Pozo.Estado.MARCADO, "Inserted marker must mark its well")
 			check(tronadura_all_marked_events == 0, "Progress must wait for all six markers")
+		var pozo_sin_perforar := pozos[1] as Pozo
+		var carga_prueba := charges[0]
+		carga_prueba.global_position = pozo_sin_perforar.carga_socket.snap_point.global_position
+		await frames(5)
+		check(not pozo_sin_perforar.carga_socket.monitoring and pozo_sin_perforar.carga_socket.occupant == null, "Unperforated wells reject charges")
+		check(pozo_sin_perforar.estado == Pozo.Estado.MARCADO, "Charge cannot advance an unperforated well")
 		check(not (pozos[5] as Pozo).perforar(), "An empty well cannot be perforated")
 		var last_pozo := pozos[5] as Pozo
 		var last_marker := markers[5] as VRGrabbable
@@ -240,11 +253,21 @@ func run_checks() -> void:
 		perforadora.use(anchor)
 		var pozo_audio := pozo_sin_marcar.get_node("SonidoPerforacion") as AudioStreamPlayer3D
 		check(pozo_sin_marcar.estado == Pozo.Estado.PERFORADO, "Perforator drills a marked well")
+		check(pozo_sin_marcar.carga_socket.monitoring, "Perforated well enables its charge socket")
 		check(pozo_sin_marcar.hueco.visible and pozo_audio.playing, "Drilling shows a hole and plays its sound")
 		check((pozo_sin_marcar.get_node("MarcadorSocket") as VRSocket).occupant == markers[0], "Drilling leaves the marker fixed in its socket")
+		carga_prueba.global_position = pozo_sin_marcar.carga_socket.snap_point.global_position
+		carga_prueba.linear_velocity = Vector3.ZERO
+		carga_prueba.angular_velocity = Vector3.ZERO
+		await frames(5)
+		check(pozo_sin_marcar.estado == Pozo.Estado.CARGADO, "Perforated well accepts a practice charge")
+		check(pozo_sin_marcar.carga_socket.occupant == carga_prueba and carga_prueba.freeze, "Inserted charge stays in its socket")
+		check(pozo_sin_marcar.borde.material_override != pozo_sin_perforar.borde.material_override, "Loaded well changes material")
+		check((tronadura.get_node("ContadorPozos") as Label3D).text == "pozos cargados: 1/6", "Charge counter updates from well signals")
 		check(last_pozo.perforar() and last_pozo.estado == Pozo.Estado.PERFORADO, "Marked well can be perforated")
 		pozo_sin_marcar.reiniciar()
 		check(pozo_sin_marcar.estado == Pozo.Estado.VACIO and (pozo_sin_marcar.get_node("MarcadorSocket") as VRSocket).occupant == null, "Reset clears the socket and well state")
+		check((tronadura.get_node("ContadorPozos") as Label3D).text == "pozos cargados: 0/6", "Charge counter updates when a well resets")
 		check(not pozo_sin_marcar.hueco.visible and not pozo_audio.playing, "Reset clears the hole and stops its sound")
 		perforadora.queue_free()
 	tronadura.queue_free()

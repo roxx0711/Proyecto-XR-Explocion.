@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://features/vr/interaction/vr_grabbable.tscn" id="1_grabbable"]
+
+[node name="Carga" instance=ExtResource("1_grabbable")]
+display_name = "Carga ficticia"
+color = Color(0.25, 0.72, 0.34, 1)
+item_id = &"carga"

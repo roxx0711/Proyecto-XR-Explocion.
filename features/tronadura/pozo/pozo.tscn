@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://features/tronadura/pozo/pozo.gd" id="1_pozo"]
 [ext_resource type="PackedScene" path="res://features/vr/interaction/vr_socket.tscn" id="2_socket"]
@@ -25,6 +25,7 @@ height = 0.015
 script = ExtResource("1_pozo")
 
 [node name="Borde" type="MeshInstance3D" parent="."]
+unique_name_in_owner = true
 position = Vector3(0, 0.04, 0)
 material_override = SubResource("StandardMaterial3D_pozo")
 mesh = SubResource("CylinderMesh_pozo")
@@ -46,3 +47,9 @@ unit_size = 1.0
 unique_name_in_owner = true
 position = Vector3(0, 0.1, 0)
 accepted_item = &"marcador"
+
+[node name="CargaSocket" parent="." instance=ExtResource("2_socket")]
+unique_name_in_owner = true
+position = Vector3(0.24, 0.1, 0)
+monitoring = false
+accepted_item = &"carga"
