@@ -200,10 +200,28 @@ func run_checks() -> void:
 	Signal(tronadura, &"todos_los_pozos_marcados").connect(_on_tronadura_all_marked)
 	await frames(5)
 	var pozos := tronadura.get_tree().get_nodes_in_group(&"pozos")
-	var markers := tronadura.get_tree().get_nodes_in_group(&"vr_grabbable")
+	var grabbables := tronadura.get_tree().get_nodes_in_group(&"vr_grabbable")
+	var markers: Array[VRGrabbable] = []
+	for grabbable_node: Node in grabbables:
+		var grabbable := grabbable_node as VRGrabbable
+		if grabbable != null and grabbable.item_id == &"marcador":
+			markers.append(grabbable)
 	check(pozos.size() == 6, "Tronadura scene must contain six wells")
 	check(markers.size() == 6, "Tronadura scene must contain six markers")
 	if pozos.size() == 6 and markers.size() == 6:
+		var pozo_sin_marcar := pozos[0] as Pozo
+		var perforadora := (load("res://features/tronadura/herramientas/perforadora.tscn") as PackedScene).instantiate() as Perforadora
+		root.add_child(perforadora)
+		var tronadura_player := tronadura.get_node("VRPlayer") as VRPlayer
+		tronadura_player.set_physics_process(false)
+		var anchor := tronadura_player.right_hand.hold_point
+		anchor.global_transform = Transform3D(Basis.IDENTITY, pozo_sin_marcar.global_position + Vector3(0, 0.1, 0.55))
+		perforadora.global_transform = anchor.global_transform
+		check(perforadora.item_id == &"perforadora", "Tool must use the perforator item ID")
+		check(perforadora.begin_grab(anchor), "Perforator can be held by the player")
+		await frames(5)
+		perforadora.use(anchor)
+		check(pozo_sin_marcar.estado == Pozo.Estado.VACIO and not pozo_sin_marcar.hueco.visible, "Perforator does not affect an unmarked well")
 		for index: int in range(5):
 			var pozo := pozos[index] as Pozo
 			var marker := markers[index] as VRGrabbable
@@ -219,12 +237,19 @@ func run_checks() -> void:
 		var last_socket := last_pozo.get_node("MarcadorSocket") as VRSocket
 		check(last_socket.insert_item(last_marker), "Sixth marker must insert into its well")
 		check(tronadura_all_marked_events == 1, "All six marked wells must emit the progression signal")
+		perforadora.use(anchor)
+		var pozo_audio := pozo_sin_marcar.get_node("SonidoPerforacion") as AudioStreamPlayer3D
+		check(pozo_sin_marcar.estado == Pozo.Estado.PERFORADO, "Perforator drills a marked well")
+		check(pozo_sin_marcar.hueco.visible and pozo_audio.playing, "Drilling shows a hole and plays its sound")
+		check((pozo_sin_marcar.get_node("MarcadorSocket") as VRSocket).occupant == markers[0], "Drilling leaves the marker fixed in its socket")
 		check(last_pozo.perforar() and last_pozo.estado == Pozo.Estado.PERFORADO, "Marked well can be perforated")
-		var reset_pozo := pozos[0] as Pozo
-		reset_pozo.reiniciar()
-		check(reset_pozo.estado == Pozo.Estado.VACIO and (reset_pozo.get_node("MarcadorSocket") as VRSocket).occupant == null, "Reset clears the socket and well state")
+		pozo_sin_marcar.reiniciar()
+		check(pozo_sin_marcar.estado == Pozo.Estado.VACIO and (pozo_sin_marcar.get_node("MarcadorSocket") as VRSocket).occupant == null, "Reset clears the socket and well state")
+		check(not pozo_sin_marcar.hueco.visible and not pozo_audio.playing, "Reset clears the hole and stops its sound")
+		perforadora.queue_free()
 	tronadura.queue_free()
 	await process_frame
+	await frames(30)
 	if failures.is_empty():
 		print("PASS: VR template integration checks")
 	else:

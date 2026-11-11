@@ -12,6 +12,15 @@ top_radius = 0.42
 bottom_radius = 0.42
 height = 0.08
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hueco"]
+albedo_color = Color(0.01, 0.008, 0.006, 1)
+roughness = 1.0
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_hueco"]
+top_radius = 0.23
+bottom_radius = 0.23
+height = 0.015
+
 [node name="Pozo" type="Node3D" groups=["pozos"]]
 script = ExtResource("1_pozo")
 
@@ -19,6 +28,19 @@ script = ExtResource("1_pozo")
 position = Vector3(0, 0.04, 0)
 material_override = SubResource("StandardMaterial3D_pozo")
 mesh = SubResource("CylinderMesh_pozo")
+
+[node name="Hueco" type="MeshInstance3D" parent="."]
+unique_name_in_owner = true
+position = Vector3(0, 0.0875, 0)
+visible = false
+material_override = SubResource("StandardMaterial3D_hueco")
+mesh = SubResource("CylinderMesh_hueco")
+
+[node name="SonidoPerforacion" type="AudioStreamPlayer3D" parent="."]
+unique_name_in_owner = true
+attenuation_model = 0
+max_distance = 8.0
+unit_size = 1.0
 
 [node name="MarcadorSocket" parent="." instance=ExtResource("2_socket")]
 unique_name_in_owner = true
